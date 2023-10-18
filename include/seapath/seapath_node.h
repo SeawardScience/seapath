@@ -18,6 +18,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/Imu.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <tf/tf.h>
 
@@ -31,6 +32,8 @@ public:
 
   void publishNavsat(Seapath23_raw_t* raw);
   void publishOdom(Seapath23_raw_t* raw);
+  void publishImu(Seapath23_raw_t* raw);
+  void publishTwist(Seapath23_raw_t* raw);
 
   void spinOnce();
   void spin();
@@ -45,10 +48,12 @@ private:
   uint8_t buf[BUFSIZE];
   struct{
     ros::Publisher navsat;
+    ros::Publisher imu;
+    ros::Publisher twist;
     ros::Publisher odom;
   } pub_;
 
-
+  std::string frame_id_ = "imu";
 };
 
 NS_FOOT
