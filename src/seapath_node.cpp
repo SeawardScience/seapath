@@ -106,7 +106,9 @@ void SeapathNode::publishNavsat(Seapath23_raw_t *raw){
   sensor_msgs::NavSatFix msg;
   msg.latitude = ((double)s_ntohl(raw->latitude)) / ((double)(LAT_SCALE)) * 90;
   msg.longitude = ((double)s_ntohl(raw->longitude)) / ((double)(LON_SCALE)) * 90;
-  msg.altitude = ((double)s_ntohs(raw->heave)) / 100.0;
+  double height = (double)s_ntohl(raw->height)/100.0;
+  msg.altitude = height;
+  //msg.altitude = ((double)s_ntohs(raw->heave)) / 100.0;
   msg.header.stamp.fromSec((double)s_ntohl(raw->time) + (double)ntohs(raw->time_frac)/10000.0);
   msg.header.frame_id = "mru";
   pub_.navsat.publish(msg);
@@ -126,11 +128,10 @@ void SeapathNode::publishImu(Seapath23_raw_t *raw)
   double pitch = ((double)s_ntohs(raw->pitch)) / ANG_SCALE * 90;
   pitch = pitch * pi/180;
   double hdg = ((double)ntohs(raw->heading)) / ANG_SCALE * 90;
-  double yaw = (90.0 - hdg) * pi/180;
-
+  double yaw = (90.0 - hdg) * pi/180.0;
   quat.setRPY(roll,
-              pitch,
-              yaw);
+             pitch,
+             yaw);
 
   msg.orientation.x = quat.x();
   msg.orientation.y = quat.y();
