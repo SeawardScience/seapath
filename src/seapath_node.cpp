@@ -52,9 +52,14 @@ SeapathNode::SeapathNode()
 
   int recv_port;
   nh_->param<int>("port",    recv_port, 14150);
+  frame_id_ =  nh_->param("frame_id", frame_id_);
 
-  pub_.navsat = nh_->advertise<sensor_msgs::NavSatFix>("/nautilus/seapath/fix", 1000);
-  pub_.odom = nh_->advertise<nav_msgs::Odometry>("/nautilus/seapath/odom", 1000);
+
+  ros::NodeHandle nh;
+  pub_.navsat = nh.advertise<sensor_msgs::NavSatFix>("fix", 1000);
+  pub_.imu = nh.advertise<sensor_msgs::Imu>("imu", 1000);
+  pub_.twist = nh.advertise<geometry_msgs::TwistStamped>("twist", 1000);
+  pub_.odom = nh.advertise<nav_msgs::Odometry>("odom", 1000);
 
 
   struct sockaddr_in addr;
@@ -106,6 +111,73 @@ void SeapathNode::publishNavsat(Seapath23_raw_t *raw){
   msg.header.frame_id = "mru";
   pub_.navsat.publish(msg);
 }
+
+void SeapathNode::publishImu(Seapath23_raw_t *raw)
+{
+  sensor_msgs::Imu msg;
+
+  msg.header.stamp.fromSec((double)s_ntohl(raw->time) + (double)ntohs(raw->time_frac)/10000.0);
+  msg.header.frame_id = frame_id_;
+
+  tf2::Quaternion quat;
+  double pi = PI;
+  double roll =((double)s_ntohs(raw->roll)) / ANG_SCALE * 90;
+  roll = roll * pi/180;
+  double pitch = ((double)s_ntohs(raw->pitch)) / ANG_SCALE * 90;
+  pitch = pitch * pi/180;
+  double hdg = ((double)ntohs(raw->heading)) / ANG_SCALE * 90;
+  double yaw = (90.0 - hdg) * pi/180;
+
+  quat.setRPY(roll,
+              pitch,
+              yaw);
+
+  msg.orientation.x = quat.x();
+  msg.orientation.y = quat.y();
+  msg.orientation.z = quat.z();
+  msg.orientation.w = quat.w();
+
+  double rollRate = ((double)s_ntohs(raw->rate_roll)) / ANG_SCALE * 90;
+  rollRate = rollRate * pi/180;
+  double pitchRate = ((double)s_ntohs(raw->rate_pitch)) / ANG_SCALE * 90;
+  pitchRate = pitchRate * pi/180;
+  double yawRate = ((double)s_ntohs(raw->rate_heading)) / ANG_SCALE * 90;
+  yawRate = yawRate * pi/180;
+
+  msg.angular_velocity.x = rollRate;
+  msg.angular_velocity.y = pitchRate;
+  msg.angular_velocity.z = yawRate;
+
+  pub_.imu.publish(msg);
+}
+
+
+void SeapathNode::publishTwist(Seapath23_raw_t *raw)
+{
+  geometry_msgs::TwistStamped msg;
+  msg.header.stamp.fromSec((double)s_ntohl(raw->time) + (double)ntohs(raw->time_frac)/10000.0);
+  msg.header.frame_id = frame_id_;
+
+
+  double rollRate = ((double)s_ntohs(raw->rate_roll)) / ANG_SCALE * 90;
+  rollRate = rollRate * PI/180;
+  double pitchRate = ((double)s_ntohs(raw->rate_pitch)) / ANG_SCALE * 90;
+  pitchRate = pitchRate * PI/180;
+  double yawRate = ((double)s_ntohs(raw->rate_heading)) / ANG_SCALE * 90;
+  yawRate = yawRate * PI/180;
+
+  msg.twist.linear.x = ((double)s_ntohs(raw->vel_north)) / 100.0;
+  msg.twist.linear.y = ((double)s_ntohs(raw->vel_east)) / 100.0;
+  msg.twist.linear.z = ((double)s_ntohs(raw->vel_down)) / 100.0;
+
+  msg.twist.angular.x = rollRate;
+  msg.twist.angular.y = pitchRate;
+  msg.twist.angular.z = yawRate;
+
+  pub_.twist.publish(msg);
+}
+
+
 
 void SeapathNode::publishOdom(Seapath23_raw_t *raw){
   nav_msgs::Odometry msg;
@@ -159,6 +231,8 @@ void SeapathNode::spinOnce(){
   } else {
     publishNavsat((Seapath23_raw_t*)buf);
     publishOdom((Seapath23_raw_t*)buf);
+    publishImu((Seapath23_raw_t*)buf);
+    publishTwist((Seapath23_raw_t*)buf);
 
   }
 }
